@@ -121,7 +121,6 @@
               <option value="IN_PROGRESS">قيد التنفيذ</option>
               <option value="COMPLETED">مغلق</option>
             </select>
-            <button class="btn" onclick="seedDemoData(true)"><i data-lucide="refresh-ccw" class="w-4 h-4 ml-1"></i> تحديث بيانات تجريبية</button>
           </div>
         </div>
         <div class="overflow-x-auto rounded-xl border">
@@ -187,7 +186,6 @@
         <h2 class="text-2xl font-extrabold mb-4">الإعدادات العامة</h2>
         <div class="flex flex-col gap-3">
           <label class="flex items-center gap-2"><input id="darkToggle" type="checkbox" class="w-4 h-4" onchange="toggleDarkMode()"> تفعيل الوضع الليلي (تجريبي)</label>
-          <button class="btn w-fit" onclick="seedDemoData(true)"><i data-lucide="database" class="w-4 h-4 ml-1"></i> إعادة تهيئة البيانات التجريبية</button>
         </div>
       </div>
     </section>
@@ -207,17 +205,21 @@
         </div>
         <div>
           <label class="text-sm font-bold">البريد</label>
-          <input id="addEmail" class="border rounded-xl p-2 w-full" placeholder="ahmed@example.com"/>
+          <input id="addEmail" type="email" class="border rounded-xl p-2 w-full" placeholder="ahmed@example.com"/>
+        </div>
+        <div>
+          <label class="text-sm font-bold">كلمة المرور</label>
+          <input id="addPassword" type="password" class="border rounded-xl p-2 w-full" placeholder="••••••••"/>
         </div>
         <div>
           <label class="text-sm font-bold">الدور</label>
           <select id="addRole" class="border rounded-xl p-2 w-full">
-            <option value="manager">مدير</option>
             <option value="inspector">مراقب</option>
             <option value="contractor">مقاول</option>
+            <option value="manager">مدير</option>
           </select>
         </div>
-        <div class="flex items-end"><button class="btn" onclick="saveUser()">حفظ</button></div>
+        <div class="md:col-span-2 flex items-end justify-end"><button class="btn" onclick="saveUser()">حفظ</button></div>
       </div>
     </div>
   </div>
@@ -253,8 +255,9 @@
       getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
       onSnapshot, serverTimestamp, query, orderBy, setDoc
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-    // ضع إعدادات مشروعك هنا:
+    // ⚠️ انسخ نفس إعدادات Firebase من لوحة القيادة التنفيذية هنا ليعمل كل شيء على نفس المشروع
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_APP.firebaseapp.com",
@@ -264,14 +267,15 @@
       appId: "YOUR_APP_ID"
     };
 
-    let app, db, FIREBASE_READY=false;
+    let app, db, auth, FIREBASE_READY=false;
     try{
-      app = initializeApp(firebaseConfig);
-      db  = getFirestore(app);
+      app  = initializeApp(firebaseConfig);
+      db   = getFirestore(app);
+      auth = getAuth(app);
       FIREBASE_READY = !!db;
       console.log('✅ Firebase connected');
     }catch(e){
-      console.warn('⚠️ Firebase init failed. Fallback to local demo.', e);
+      console.warn('⚠️ Firebase init failed.', e);
     }
 
     // ===== State =====
@@ -300,29 +304,6 @@
         if(t==='map'){ setTimeout(()=>{ map?.invalidateSize(); }, 200); }
       })
     });
-
-    // ===== Demo Seed (fallback) =====
-    function seedDemoData(reset=false){
-      if(!users.length || reset){
-        users = [
-          {id:'u1', name:'أحمد العتيبي', email:'ahmed@example.com', role:'inspector', active:true},
-          {id:'u2', name:'نورة السبيعي', email:'nora@example.com', role:'inspector', active:true},
-          {id:'u3', name:'شركة الصيانة المتحدة', email:'cont@example.com', role:'contractor', active:true},
-          {id:'u4', name:'مشرف عام', email:'manager@example.com', role:'manager', active:true},
-        ];
-      }
-      if(!observations.length || reset){
-        observations = [
-          {id:1761488503202, title:'حفرية بالطريق', status:'PENDING', inspector:'أحمد العتيبي', contractor:'—', date:'2025-10-29', hasImage:true, lat:24.7136, lng:46.6753},
-          {id:1761488503203, title:'حواجز خرسانية متساقطة', status:'PENDING', inspector:'نورة السبيعي', contractor:'—', date:'2025-10-29', hasImage:true, lat:24.8, lng:46.7},
-          {id:1761488503204, title:'تشققات بالأسفلت', status:'IN_PROGRESS', inspector:'أحمد العتيبي', contractor:'شركة الصيانة المتحدة', date:'2025-10-28', hasImage:true, lat:24.65, lng:46.62},
-          {id:1761488503205, title:'عدم صيانة دورات المياه', status:'PENDING', inspector:'—', contractor:'—', date:'2025-10-28', hasImage:false, lat:24.75, lng:46.68},
-          {id:1761488503206, title:'حفرية بالطريق', status:'COMPLETED', inspector:'نورة السبيعي', contractor:'شركة الصيانة المتحدة', date:'2025-10-22', hasImage:true, lat:24.72, lng:46.61},
-        ];
-      }
-      renderUsers(); renderObservations(); renderKPIs();
-      refreshMapMarkers();
-    }
 
     // ===== KPIs =====
     function renderKPIs(){
@@ -372,23 +353,26 @@
     }
     window.filterUsers = ()=>renderUsers();
 
-    // Firestore-backed user ops
+    // إنشاء مستخدم فعلي (Auth + Firestore)
     async function saveUser(){
       const name=$('#addName').value.trim();
       const email=$('#addEmail').value.trim();
+      const password=$('#addPassword').value.trim();
       const role=$('#addRole').value;
-      if(!name||!email) return alert('الرجاء تعبئة الاسم والبريد.');
-      const newUser = {name,email,role,active:true,createdAt: serverTimestamp()};
-      if(FIREBASE_READY){
-        const ref = await addDoc(collection(db,'users'), newUser);
-        users.unshift({id:ref.id, ...newUser, active:true});
-      } else {
-        users.unshift({id:'u'+(Date.now()), ...newUser, active:true});
+      if(!name||!email||!password){ alert('الرجاء تعبئة الاسم والبريد وكلمة المرور.'); return; }
+      try{
+        if(!FIREBASE_READY){ alert('لم يتم ضبط Firebase بعد. الرجاء إدخال الإعدادات الصحيحة.'); return; }
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
+        await setDoc(doc(db,'users',uid), { uid, name, email, role, active:true, createdAt: serverTimestamp() });
+        users.unshift({ id: uid, name, email, role, active:true });
+        closeModal('modalAddUser');
+        $('#addName').value=''; $('#addEmail').value=''; $('#addPassword').value=''; $('#addRole').value='inspector';
+        renderUsers();
+        showToast('✅ تم إنشاء المستخدم بنجاح');
+      }catch(err){
+        console.error(err); alert('حدث خطأ أثناء إنشاء المستخدم: '+ (err?.message||err));
       }
-      closeModal('modalAddUser');
-      $('#addName').value='';$('#addEmail').value='';$('#addRole').value='inspector';
-      renderUsers();
-      showToast('تم إضافة المستخدم بنجاح');
     }
     window.saveUser = saveUser;
 
@@ -446,14 +430,14 @@
       const o=observations.find(x=>(x.docId||x.id)==id); if(!o) return;
       o.status = o.status==='PENDING'?'IN_PROGRESS':(o.status==='IN_PROGRESS'?'COMPLETED':'PENDING');
       renderObservations(); renderKPIs(); refreshMapMarkers();
-      if(FIREBASE_READY) await updateDoc(doc(db,'observations',o.docId), {status:o.status});
+      if(FIREBASE_READY && o.docId) await updateDoc(doc(db,'observations',o.docId), {status:o.status});
     }
     window.cycleStatus = cycleStatus;
 
     async function closeTicket(id){
       const o=observations.find(x=>(x.docId||x.id)==id); if(!o) return;
       o.status='COMPLETED'; renderObservations(); renderKPIs(); refreshMapMarkers();
-      if(FIREBASE_READY) await updateDoc(doc(db,'observations',o.docId), {status:'COMPLETED', closedAt: serverTimestamp()});
+      if(FIREBASE_READY && o.docId) await updateDoc(doc(db,'observations',o.docId), {status:'COMPLETED', closedAt: serverTimestamp()});
       alert('تم إغلاق البلاغ رقم '+(o.displayId || o.id));
     }
     window.closeTicket = closeTicket;
@@ -462,8 +446,10 @@
     function openAssign(id){
       selectedObservationId=id;
       const inspSel=$('#assignInspector'); const contSel=$('#assignContractor');
-      inspSel.innerHTML = users.filter(u=>u.role==='inspector'&&u.active).map(u=>`<option>${u.name}</option>`).join('');
-      contSel.innerHTML = users.filter(u=>u.role==='contractor'&&u.active).map(u=>`<option>${u.name}</option>`).join('');
+      const insp = users.filter(u=>u.role==='inspector'&&u.active);
+      const cont = users.filter(u=>u.role==='contractor'&&u.active);
+      inspSel.innerHTML = insp.length? insp.map(u=>`<option>${u.name}</option>`).join('') : '<option disabled>لا يوجد مراقبون نشطون</option>';
+      contSel.innerHTML = cont.length? cont.map(u=>`<option>${u.name}</option>`).join('') : '<option disabled>لا يوجد مقاولون نشطون</option>';
       openModal('modalAssign');
     }
     window.openAssign = openAssign;
@@ -474,7 +460,7 @@
       const contractor=$('#assignContractor').value||o.contractor;
       o.inspector=inspector; o.contractor=contractor;
       closeModal('modalAssign'); renderObservations();
-      if(FIREBASE_READY) await updateDoc(doc(db,'observations',o.docId), {inspector,contractor});
+      if(FIREBASE_READY && o.docId) await updateDoc(doc(db,'observations',o.docId), {inspector,contractor});
       alert('تم التعيين بنجاح');
     }
     window.confirmAssign = confirmAssign;
@@ -509,7 +495,7 @@
 
     // ===== Firestore sync (Users + Observations) =====
     async function loadFromFirestore(){
-      if(!FIREBASE_READY) { seedDemoData(true); return; }
+      if(!FIREBASE_READY) { console.warn('Firebase غير متاح — لن يتم تحميل بيانات تجريبية تلقائياً.'); return; }
 
       // Users
       onSnapshot(collection(db,'users'), snap=>{
@@ -523,6 +509,13 @@
         const arr=[];
         snap.forEach(d=>{
           const x=d.data();
+          // دعم كلا الحالتين: lat/lng كأرقام أو location كنص "lat, lng"
+          let lat = typeof x.lat==='number' ? x.lat : null;
+          let lng = typeof x.lng==='number' ? x.lng : null;
+          if((lat===null || lng===null) && typeof x.location==='string'){
+            const parts = x.location.split(',').map(s=>parseFloat(s.trim()));
+            if(parts.length===2 && parts.every(n=>Number.isFinite(n))){ lat=parts[0]; lng=parts[1]; }
+          }
           arr.push({
             docId:d.id,
             id: x.id || d.id,
@@ -532,9 +525,8 @@
             inspector: x.inspector || '—',
             contractor: x.contractor || '—',
             date: x.date || '',
-            hasImage: !!x.imagePath,
-            lat: typeof x.lat==='number' ? x.lat : null,
-            lng: typeof x.lng==='number' ? x.lng : null
+            hasImage: !!(x.imagePath || x.afterImagePath),
+            lat, lng
           });
         });
         observations = arr;
@@ -575,7 +567,7 @@
     function refreshMapMarkers(){
       if(!map) return;
       markersLayer.clearLayers();
-      const list = observations.filter(o=>typeof o.lat==='number' && typeof o.lng==='number');
+      const list = observations.filter(o=>Number.isFinite(o.lat) && Number.isFinite(o.lng));
       list.forEach(o=>{
         const icon = ICONS[o.status] || ICONS.PENDING;
         const m = L.marker([o.lat,o.lng], {icon})
@@ -613,7 +605,6 @@
       btn.textContent='إيقاف التتبع';
       myWatchId = navigator.geolocation.watchPosition(async pos=>{
         const {latitude:lat, longitude:lng} = pos.coords;
-        // ارفع حضوري (presence) كمدير — للعرض فقط
         if(FIREBASE_READY){
           const me = window.__SMART_USER__ || {};
           await setDoc(doc(db,'presence', (me.email||'manager')), {
@@ -644,7 +635,7 @@
     function boot(){
       initMap();
       if(FIREBASE_READY) { loadFromFirestore(); subscribePresence(); }
-      else { seedDemoData(true); }
+      else { showToast('⚠️ الرجاء ضبط مفاتيح Firebase ليعمل المشروع.'); }
       try{ lucide.createIcons(); }catch(e){}
     }
     window.addEventListener('DOMContentLoaded', boot);
@@ -652,7 +643,6 @@
 
   <!-- App helpers (non-module so we can call them from inline HTML) -->
   <script>
-    // إبقاء دوال العرض العامة في نطاق نافذة المتصفح
     window.openModal = (id)=>{ document.getElementById(id).style.display='flex'; };
     window.closeModal = (id)=>{ document.getElementById(id).style.display='none'; };
   </script>
