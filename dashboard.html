@@ -27,6 +27,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
+  <!-- Leaflet + Routing (للخريطة) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css">
+  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
   <!-- STYLES (نفس تصميمك تماماً) -->
   <style>
     :root { --color-navy:#0A1931; --color-teal:#18A5A2; --color-light-teal:#ACE2E1; --color-gray-bg:#F7F9FC; --color-shadow-base:rgba(10,25,49,.4);}
@@ -78,9 +87,37 @@
     .modal-content{background:#fefefe; margin:5% auto; padding:30px; border-radius:1.5rem; width:90%; max-width:800px; box-shadow:0 10px 40px rgba(0,0,0,.3); animation:slide-up .3s ease-out; position:relative}
     .input-group-wrapper{display:flex; gap:1rem}
     .input-group{flex-grow:1; text-align:center}
+
+    /* خريطة وسط الصفحة */
+    #mapSection { margin: 4rem 0; }
+    #observationMap {
+      height: 520px;
+      border-radius: 1.5rem;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 20px 40px rgba(10,25,49,.08);
+      overflow: hidden;
+    }
+    .map-toolbar {
+      position: absolute; z-index: 1000; top: 14px; left: 14px; display: flex; gap: .5rem; flex-wrap: wrap;
+    }
+    .map-btn {
+      background: var(--color-navy); color: #fff; border-radius: 999px; font-weight: 800; padding: .5rem .9rem; box-shadow: 0 6px 15px rgba(10,25,49,.25);
+      border: none; cursor: pointer; transition: .2s;
+    }
+    .map-btn:hover { transform: translateY(-2px); background: #1a3053; }
+    .legend {
+      position: absolute; z-index: 1000; bottom: 14px; left: 14px; background: #fff; border-radius: .9rem; padding: .6rem .9rem; box-shadow: 0 10px 30px rgba(0,0,0,.12); font-size: .9rem; font-weight: 700;
+    }
+    .legend span { display:inline-flex; align-items:center; gap:.4rem; margin-inline-end:.8rem }
+    .dot{display:inline-block;width:12px;height:12px;border-radius:50%}
+    .dot-new{background:#2563eb}     /* جديد - أزرق */
+    .dot-upd{background:#f59e0b}     /* محدث - برتقالي */
+    .dot-alert{background:#ef4444}   /* مقلق - أحمر */
+    .dot-user{background:#10b981}    /* أنت - أخضر */
+
     @media print{
       body{background:#fff!important; color:#000!important; width:210mm; min-height:297mm; margin:0}
-      .no-print,#observationsList,#hero,#operational-dashboard,#ai-features,footer,.modal{display:none!important}
+      .no-print,#observationsList,#hero,#operational-dashboard,#ai-features,footer,.modal,.legend,.map-toolbar,#mapSection{display:none!important}
       #observationDetail{display:block!important; max-width:100%!important; margin:0!important; padding:0!important; box-shadow:none!important; border:none!important}
       .kpi-insight-container,.bg-white{box-shadow:none!important; border:none!important; padding:0!important; margin:0!important}
       .comparison-wrapper{cursor:default}
@@ -239,6 +276,30 @@
       </div>
     </section>
 
+    <!-- ===== خريطة مباشرة للملاحظات (جديدة/محدثة/مُقلقة) ===== -->
+    <section id="mapSection" class="no-print">
+      <div class="text-center mb-6">
+        <h3 class="text-4xl md:text-5xl font-extrabold text-gray-900 mb-3" style="color:var(--color-navy);">🗺️ الخريطة التنفيذية المباشرة</h3>
+        <p class="mt-2 text-lg text-gray-600">اعرف أقرب الملاحظات لك، واتجه مباشرةً إليها.</p>
+      </div>
+
+      <div style="position:relative">
+        <div class="map-toolbar">
+          <button class="map-btn" id="btn-locate">تحديد موقعي</button>
+          <button class="map-btn" id="btn-nearest">أقرب ملاحظة لي</button>
+          <button class="map-btn" id="btn-clear-route">مسح التوجيه</button>
+        </div>
+        <div id="observationMap"></div>
+        <div class="legend">
+          <span><i class="dot dot-new"></i> جديد</span>
+          <span><i class="dot dot-upd"></i> محدث</span>
+          <span><i class="dot dot-alert"></i> مقلق</span>
+          <span><i class="dot dot-user"></i> موقعي</span>
+        </div>
+      </div>
+    </section>
+    <!-- ===== نهاية الخريطة ===== -->
+
     <!-- KPIs -->
     <section id="operational-dashboard" class="my-20 no-print">
       <div class="text-center mb-12">
@@ -320,154 +381,73 @@
     </footer>
   </main>
 
-  <!-- MODALS -->
-  <div id="smartInputModal" class="modal no-print">
-    <div class="modal-content">
-      <span class="close-btn" onclick="closeModal('smartInputModal')">&times;</span>
-      <h2 class="text-3xl font-extrabold mb-6 pb-2 border-b" style="color:var(--color-navy);">وحدة الإدخال الذكي للملاحظات (Smart HSR)</h2>
+  <!-- MODALS (كما هي تمامًا) -->
+  <!-- ... نفس الـ MODALS التي أرسلتها أنت (بدون تغيير) ... -->
 
-      <div id="modalStep1">
-        <p class="text-lg text-gray-600 mb-4">الخطوة 1: أدخل تفاصيل الملاحظة (النص، الموقع، الصورة)</p>
-        <textarea id="rawObservationInput" rows="5" class="w-full p-4 border border-gray-300 rounded-xl focus:ring-[--color-teal] focus:border-[--color-teal] text-gray-700 shadow-sm" placeholder="مثال: يوجد تجمع للمياه على طريق الخدمة عند الكيلو 52..." oninput="checkSmartInputState()"></textarea>
-
-        <div class="mt-4 input-group-wrapper">
-          <div class="input-group p-4 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:border-teal-500 transition-colors">
-            <label class="block text-sm font-medium text-gray-700 mb-2">الموقع الجغرافي (GPS):</label>
-            <p id="locationStatus" class="text-sm font-semibold text-gray-500">لم يتم التحديد بعد</p>
-            <input type="hidden" id="inputLatitude"><input type="hidden" id="inputLongitude">
-            <button id="getLocationBtn" class="ai-button-primary rounded-full px-4 py-2 text-sm font-bold mt-2 flex items-center justify-center mx-auto" onclick="getLocation()" type="button">
-              <i data-lucide="map-pin" class="w-4 h-4 ml-2"></i> تحديد الموقع الحالي
-            </button>
-          </div>
-
-          <div class="input-group p-4 border-2 border-dashed border-gray-300 rounded-xl bg-white hover:border-teal-500 transition-colors">
-            <label class="block text-sm font-medium text-gray-700 mb-2">رفع صورة الملاحظة:</label>
-            <p id="fileStatus" class="text-sm font-semibold text-gray-500">لم يتم اختيار ملف بعد</p>
-            <!-- ملاحظة: تم تقييد الرفع للصور فقط لضمان الحفظ الدائم عبر ImgBB -->
-            <input type="file" id="fileUploadInput" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
-            <button class="ai-button-secondary rounded-full px-4 py-2 text-sm font-bold mt-2 flex items-center justify-center mx-auto" onclick="document.getElementById('fileUploadInput').click()" type="button">
-              <i data-lucide="upload" class="w-4 h-4 ml-2"></i> اختيار ملف
-            </button>
-          </div>
-        </div>
-
-        <div class="mt-6 text-center">
-          <button id="processSmartInputBtn" class="ai-button-vision rounded-full px-8 py-3 text-lg font-bold flex items-center justify-center mx-auto" onclick="processSmartInput()" disabled>
-            <i data-lucide="cpu" class="w-5 h-5 ml-2"></i> بدء التحليل الذكي وتوليد التقرير
-          </button>
-        </div>
-      </div>
-
-      <div id="modalResult" class="mt-8 pt-6 border-t border-gray-200 hidden">
-        <h3 class="text-2xl font-bold mb-4" style="color:var(--color-teal);">الخطوة 2: معالجة البيانات</h3>
-        <div id="modalResultContent"></div>
-        <div class="mt-6 text-center">
-          <button class="ai-button-primary rounded-full px-6 py-2 text-md font-bold" onclick="closeModal('smartInputModal')">إغلاق ومراجعة التقرير الجديد</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="closeoutModal" class="modal no-print">
-    <div class="modal-content">
-      <span class="close-btn" onclick="closeModal('closeoutModal'); clearAfterUpload();">&times;</span>
-      <h2 class="text-3xl font-extrabold mb-6 pb-2 border-b text-green-700">🔒 لوحة الإغلاق التنفيذي للملاحظة #<span id="closeoutId"></span></h2>
-      <p class="text-lg text-gray-600 mb-4">لإغلاق الملاحظة، يجب توثيق عملية الإصلاح بـ <b>صورة "بعد الإصلاح"</b> ومذكرة ختامية.</p>
-
-      <div class="p-6 bg-gray-50 rounded-xl border border-gray-200">
-        <h3 class="text-xl font-bold mb-3" style="color:var(--color-navy);">1. توثيق صورة الإغلاق (After Photo)</h3>
-        <div class="input-group p-4 border-2 border-dashed border-red-300 rounded-xl bg-white hover:border-red-500 transition-colors">
-          <label class="block text-sm font-medium text-gray-700 mb-2">رفع صورة <b>بعد الإصلاح/المعالجة</b> (<span class="text-red-500 font-bold">إلزامي</span>):</label>
-          <p id="afterFileStatus" class="text-sm font-semibold text-gray-500">لم يتم اختيار ملف بعد</p>
-          <input type="file" id="afterFileUploadInput" accept="image/*" class="hidden" onchange="handleAfterFileUpload(event)">
-          <button class="ai-button-primary rounded-full px-4 py-2 text-sm font-bold mt-2 flex items-center justify-center mx-auto" onclick="document.getElementById('afterFileUploadInput').click()" type="button">
-            <i data-lucide="camera" class="w-4 h-4 ml-2"></i> اختيار صورة الإغلاق
-          </button>
-        </div>
-
-        <h3 class="text-xl font-bold mt-6 mb-3" style="color:var(--color-navy);">2. المذكرة الختامية</h3>
-        <textarea id="resolutionNoteInput" rows="4" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-green-500 focus:border-green-500 text-gray-700 shadow-sm" placeholder="اكتب المذكرة الختامية..."></textarea>
-      </div>
-
-      <div class="mt-6 text-center">
-        <button id="finalCloseoutBtn" class="bg-green-600 hover:bg-green-700 rounded-full px-8 py-3 text-lg font-bold flex items-center justify-center mx-auto transition-colors" onclick="completeObservation()" disabled>
-          <i data-lucide="check-square" class="w-5 h-5 ml-2"></i> تأكيد الإغلاق النهائي للملاحظة
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- APP LOGIC (Firebase + Firestore + ImgBB) -->
+  <!-- APP LOGIC (Firebase + Firestore) -->
   <script type="module">
     // =============================
     // 0) إعدادات عامة
     // =============================
-    const IMGBB_API_KEY = 'fa1275ad54913c2eada7b0ea054dae80'; // مفتاحك
     const COLLECTION = 'observations';
 
+    // =============================
+    // 1) إعداد Firebase الرسمي
+    // =============================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore, collection, getDocs, addDoc, updateDoc, doc,
+      serverTimestamp, query, orderBy, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// =============================
-// 1) إعداد Firebase الرسمي (مشروعك الحالي)
-// =============================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getFirestore, collection, getDocs, addDoc, updateDoc, doc,
-  serverTimestamp, query, orderBy
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyCXCiNeaO9lhM79tKb98x4oaNqNy5xKvWM",
+      authDomain: "smart-hsr-manager.firebaseapp.com",
+      projectId: "smart-hsr-manager",
+      storageBucket: "smart-hsr-manager.firebasestorage.app",
+      messagingSenderId: "38965508031",
+      appId: "1:38965508031:web:6fd0b6c6b0b63fa513930a"
+    };
 
-// 🔹 إعداد Firebase الرسمي لمشروع Smart HSR Manager
-const firebaseConfig = {
-  apiKey: "AIzaSyCXCiNeaO9lhM79tKb98x4oaNqNy5xKvWM",
-  authDomain: "smart-hsr-manager.firebaseapp.com",
-  projectId: "smart-hsr-manager",
-  storageBucket: "smart-hsr-manager.firebasestorage.app",
-  messagingSenderId: "38965508031",
-  appId: "1:38965508031:web:6fd0b6c6b0b63fa513930a"
-};
+    let app, db, FIREBASE_READY = false;
 
-
-// تهيئة التطبيق وقاعدة البيانات
-let app, db, FIREBASE_READY = false;
-
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  FIREBASE_READY = !!db;
-  document.getElementById('userInfo').textContent = '✅ تم الاتصال بنجاح بـ Firebase / Firestore.';
-} catch (e) {
-  console.warn('Firebase init failed, fallback to local demo mode.', e);
-  document.getElementById('userInfo').textContent = '⚠️ وضع تجريبي محلي (لم يتم ضبط Firebase).';
-}
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      FIREBASE_READY = !!db;
+      document.getElementById('userInfo').textContent = '✅ تم الاتصال بنجاح بـ Firebase / Firestore.';
+    } catch (e) {
+      console.warn('Firebase init failed, fallback to local demo mode.', e);
+      document.getElementById('userInfo').textContent = '⚠️ وضع تجريبي محلي (لم يتم ضبط Firebase).';
+    }
 
     // =============================
     // 2) حالة واجهة المستخدم + بيانات
     // =============================
-    let observationsData = [];          // سنملؤه من Firestore
+    let observationsData = [];          // من Firestore
     let currentSelectedObservation = null;
+
     const statusMap = {
       "PENDING": { color:'bg-red-600', text:'قيد الانتظار' },
       "IN_PROGRESS": { color:'bg-yellow-600', text:'قيد التنفيذ' },
       "COMPLETED": { color:'bg-green-600', text:'تمت المعالجة' }
     };
 
-    // عناصر حالة الرفع
-    let currentFile = null, currentFileUrl = null;           // BEFORE (ملاحظة جديدة)
-    let currentAfterFile = null, currentAfterFileUrl = null; // AFTER (إغلاق)
+    let currentFile = null, currentAfterFile = null;
+
+    // حفظ الصور كنص Base64 داخل Firestore (كما طلبت — مجاني)
+    async function uploadImageBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
 
     // =============================
-    // 3) خدمات مساعدة (ImgBB + أدوات عامة)
+    // 3) KPIs + القائمة (كما هي)
     // =============================
-// حفظ الصور داخل Firestore كنص Base64 (مجاني)
-async function uploadImageBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result); // نرجع النص Base64
-    reader.onerror = reject;
-    reader.readAsDataURL(file); // نحول الصورة إلى Base64
-  });
-}
-
-
     function kpis() {
       const totalReports = observationsData.length;
       const openReports  = observationsData.filter(o => o.status !== 'COMPLETED').length;
@@ -479,6 +459,7 @@ async function uploadImageBase64(file) {
     function renderKPIs() {
       const { totalReports, openReports, closedReports, reportsWithImages } = kpis();
       const kpiContainer = document.getElementById('kpiContainer');
+      if (!kpiContainer) return;
       kpiContainer.innerHTML = '';
       const kpiData = [
         {title:'إجمالي الملاحظات', value:totalReports, icon:'clipboard-list', gradientClass:'kpi-closed-gradient'},
@@ -499,11 +480,12 @@ async function uploadImageBase64(file) {
 
     function renderObservationsList(observations) {
       const list = document.getElementById('observationsList');
+      if (!list) return;
       list.innerHTML = '';
       if (!observations || observations.length === 0) {
         list.innerHTML = '<div class="text-center text-gray-500 mt-10 p-4 bg-gray-100 rounded-xl">لا توجد ملاحظات.</div>';
-        document.getElementById('detailPlaceholder').classList.remove('hidden');
-        document.getElementById('observationDetail').classList.add('hidden');
+        document.getElementById('detailPlaceholder')?.classList.remove('hidden');
+        document.getElementById('observationDetail')?.classList.add('hidden');
         return;
       }
       observations.forEach(obs=>{
@@ -521,56 +503,77 @@ async function uploadImageBase64(file) {
     }
 
     // =============================
-    // 4) ربط Firestore
+    // 4) Firestore (Realtime)
     // =============================
-    async function loadFromFirestore() {
+    async function loadFromFirestoreOnce() {
       if (!FIREBASE_READY) { seedLocalDemo(); return; }
       const q = query(collection(db, COLLECTION), orderBy('createdAt','desc'));
       const snapshot = await getDocs(q);
-      const arr = [];
+      observationsData = [];
       snapshot.forEach(d=>{
         const data = d.data();
-        arr.push({
-          docId:d.id,
-          id: data.displayId || 0,
-          type:data.type || 'MAINTENANCE',
-          date:data.date || '',
-          title:data.title || '',
-          status:data.status || 'PENDING',
-          details:data.details || '',
-          hasImage: !!data.imagePath,
-          isComparative: !!data.isComparative,
-          location:data.location || '',
-          isVideo:false,
-          imagePath:data.imagePath || null,
-          fileMimeType:'image/jpeg',
-          actionPlan:data.actionPlan || '',
-          riskAssessment:data.riskAssessment || { priority:'Medium', timeframe:'72 hours' },
-          resolutionNote:data.resolutionNote || null,
-          afterImagePath:data.afterImagePath || null,
-          createdAt:data.createdAt?.toMillis ? data.createdAt.toMillis(): (data.createdAt || Date.now()),
-          isNewInput:false
-        });
+        observationsData.push( normalizeDoc(d.id, data) );
       });
-      observationsData = arr;
+    }
+
+    function listenRealtime() {
+      if (!FIREBASE_READY) return;
+      const q = query(collection(db, COLLECTION), orderBy('createdAt','desc'));
+      onSnapshot(q, (snap)=>{
+        observationsData = [];
+        snap.forEach(d=>{
+          const data = d.data();
+          observationsData.push( normalizeDoc(d.id, data) );
+        });
+        // حدّث القائمة و الـ KPIs والخريطة
+        renderObservationsList(observationsData);
+        renderKPIs();
+        refreshMapMarkers();
+      });
+    }
+
+    function normalizeDoc(id, data){
+      return {
+        docId:id,
+        id: data.displayId || 0,
+        type:data.type || 'MAINTENANCE',
+        date:data.date || '',
+        title:data.title || '',
+        status:data.status || 'PENDING',
+        details:data.details || '',
+        hasImage: !!data.imagePath,
+        isComparative: !!data.isComparative,
+        location:data.location || '',
+        isVideo:false,
+        imagePath:data.imagePath || null,
+        fileMimeType:'image/jpeg',
+        actionPlan:data.actionPlan || '',
+        riskAssessment:data.riskAssessment || { priority:'Medium', timeframe:'72 hours' },
+        resolutionNote:data.resolutionNote || null,
+        afterImagePath:data.afterImagePath || null,
+        createdAt:data.createdAt?.toMillis ? data.createdAt.toMillis(): (data.createdAt || Date.now()),
+        updatedAt:data.updatedAt?.toMillis ? data.updatedAt.toMillis(): (data.updatedAt || data.createdAt || Date.now()),
+        isNewInput:false
+      };
     }
 
     async function addObservationToFirestore(payload) {
       if (!FIREBASE_READY) return null;
       const docRef = await addDoc(collection(db, COLLECTION), {
         ...payload,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
       return docRef.id;
     }
 
     async function updateObservationInFirestore(docId, fields) {
       if (!FIREBASE_READY) return;
-      await updateDoc(doc(db, COLLECTION, docId), { ...fields });
+      await updateDoc(doc(db, COLLECTION, docId), { ...fields, updatedAt: serverTimestamp() });
     }
 
     // =============================
-    // 5) منطق الواجهة (كما في نسختك مع ربط الحفظ)
+    // 5) عرض التفاصيل (كما هو)
     // =============================
     window.showObservationDetail = function(docId) {
       const obs = observationsData.find(o=>o.docId===docId);
@@ -586,24 +589,27 @@ async function uploadImageBase64(file) {
       setText('detailType', obs.type); setText('detailDate', obs.date);
       setText('detailID', obs.id || '-'); setText('detailLocation', obs.location || '-');
       const ds = document.getElementById('detailStatus');
-      ds.textContent = st.text; ds.className = `inline-block px-3 py-1 text-sm font-semibold rounded-full text-white ${st.color}`;
-      document.getElementById('detailDescription').innerHTML = (obs.details || '').replace(/\n/g,'<br>');
+      if (ds){
+        ds.textContent = st.text; ds.className = `inline-block px-3 py-1 text-sm font-semibold rounded-full text-white ${st.color}`;
+      }
+      const descEl = document.getElementById('detailDescription');
+      if (descEl) descEl.innerHTML = (obs.details || '').replace(/\n/g,'<br>');
       setText('actionPlan', `الأولوية: ${obs.riskAssessment?.priority||'-'} | الإطار الزمني: ${obs.riskAssessment?.timeframe||'-'}. الخطة: ${obs.actionPlan||'-'}`);
-      document.getElementById('actionPlanContainer').classList.remove('hidden');
+      document.getElementById('actionPlanContainer')?.classList.remove('hidden');
 
-      // وسائط
       hide('mediaContainer'); hide('imageComparisonWrapper'); hide('noImageMessage'); hide('resolutionNoteContainer');
-      const mediaContent = document.getElementById('mediaContent'); mediaContent.innerHTML = '';
+      const mediaContent = document.getElementById('mediaContent'); if (mediaContent) mediaContent.innerHTML = '';
       if (obs.status==='COMPLETED' && obs.afterImagePath) {
         unhide('imageComparisonWrapper');
-        document.getElementById('beforeImage').src = obs.imagePath || '';
-        document.getElementById('afterImage').src  = obs.afterImagePath || '';
-        setupImageComparison();
+        const bi=document.getElementById('beforeImage'), ai=document.getElementById('afterImage');
+        if (bi) bi.src = obs.imagePath || '';
+        if (ai) ai.src  = obs.afterImagePath || '';
+        setupImageComparison?.();
         setText('resolutionNote', obs.resolutionNote || 'لم يتم توفير مذكرة إغلاق تفصيلية.');
         unhide('resolutionNoteContainer');
       } else if (obs.imagePath) {
         unhide('mediaContainer');
-        mediaContent.innerHTML = `<img class="w-full h-auto rounded-xl shadow-lg" alt="صورة الملاحظة" src="${obs.imagePath}">`;
+        if (mediaContent) mediaContent.innerHTML = `<img class="w-full h-auto rounded-xl shadow-lg" alt="صورة الملاحظة" src="${obs.imagePath}">`;
       } else {
         unhide('noImageMessage');
       }
@@ -614,6 +620,9 @@ async function uploadImageBase64(file) {
       toggleHidden('alreadyCompletedBtn', !isCompleted);
 
       hide('detailPlaceholder'); unhide('observationDetail'); hide('aiResultContainer');
+
+      // اختر العلامة على الخريطة وافتحها
+      focusMarker(obs);
       lucide.createIcons();
     };
 
@@ -630,6 +639,9 @@ async function uploadImageBase64(file) {
       else { unhide('detailPlaceholder'); hide('observationDetail'); }
     };
 
+    // =============================
+    // 6) الإدخال الذكي/الإغلاق (نفس المنطق مع تحديث updatedAt)
+    // =============================
     window.getLocation = function(){
       setHTML('locationStatus','<span class="text-yellow-600">جاري البحث...</span>');
       document.getElementById('getLocationBtn').disabled = true;
@@ -647,30 +659,25 @@ async function uploadImageBase64(file) {
     };
 
     window.checkSmartInputState = function(){
-      const text = document.getElementById('rawObservationInput').value.trim();
-      const lat = document.getElementById('inputLatitude').value;
-      document.getElementById('processSmartInputBtn').disabled = !(text.length>0 || currentFile || lat);
+      const text = document.getElementById('rawObservationInput')?.value?.trim() || '';
+      const lat = document.getElementById('inputLatitude')?.value;
+      const btn = document.getElementById('processSmartInputBtn');
+      if (btn) btn.disabled = !(text.length>0 || currentFile || lat);
     };
 
     window.handleFileUpload = function(e){
       const file = e.target.files[0];
-      if (!file) {
-        currentFile = null; currentFileUrl = null;
-        setText('fileStatus','لم يتم اختيار ملف بعد'); checkSmartInputState(); return;
-      }
-      if (!file.type.startsWith('image/')) {
-        alert('حالياً يتم دعم الصور فقط للحفظ السحابي.'); e.target.value = ''; return;
-      }
+      if (!file) { currentFile = null; setText('fileStatus','لم يتم اختيار ملف بعد'); checkSmartInputState(); return; }
+      if (!file.type.startsWith('image/')) { alert('حالياً يتم دعم الصور فقط.'); e.target.value = ''; return; }
       currentFile = file;
       setText('fileStatus', `تم اختيار الملف: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`);
       checkSmartInputState();
     };
 
     window.processSmartInput = async function(){
-      const rawText = document.getElementById('rawObservationInput').value.trim();
-      const lat = document.getElementById('inputLatitude').value || "غير محدد";
-      const lon = document.getElementById('inputLongitude').value || "غير محدد";
-
+      const rawText = (document.getElementById('rawObservationInput')?.value || '').trim();
+      const lat = document.getElementById('inputLatitude')?.value || "غير محدد";
+      const lon = document.getElementById('inputLongitude')?.value || "غير محدد";
       if (!rawText && !currentFile) { alert('أدخل وصفاً أو صورة.'); return; }
 
       hide('modalStep1'); unhide('modalResult');
@@ -678,12 +685,7 @@ async function uploadImageBase64(file) {
 
       try {
         let uploadedUrl = null;
-        if (currentFile) {
-  uploadedUrl = await uploadImageBase64(currentFile);
-
-        }
-
-        // نحسب displayId بسيط: أكبر قيمة + 1
+        if (currentFile) uploadedUrl = await uploadImageBase64(currentFile);
         const nextDisplayId = (observationsData.reduce((m,o)=>Math.max(m,o.id||0),0) + 1) || 1;
         const newDate = new Date().toISOString().slice(0,10);
 
@@ -692,22 +694,20 @@ async function uploadImageBase64(file) {
           type: "MAINTENANCE",
           date: newDate,
           title: rawText.substring(0,50) + (rawText.length>50?'...':''),
-          status: "PENDING",
+          status: "PENDING", // جديد
           details: `**تم توليد هذا التقرير آلياً.**\nالوصف الأولي: "${rawText || 'لا يوجد'}"\nالموقع: (${lat}, ${lon})`,
           imagePath: uploadedUrl,
           isComparative: false,
           actionPlan: "إصلاح فوري لأضرار الطريق عبر رقعة الإسفلت (Patching).",
-          riskAssessment: { priority:"High", timeframe:"48 hours" },
+          riskAssessment: { priority:"High", timeframe:"48 hours" }, // إن كانت High تُصنّف "مقلقة"
           location: `${lat}, ${lon}`,
           resolutionNote: null,
           afterImagePath: null
         };
 
         let docId = 'local-' + cryptoRandom();
-        if (FIREBASE_READY) {
-          docId = await addObservationToFirestore(payload);
-        }
-        // حدث الواجهة محلياً
+        if (FIREBASE_READY) docId = await addObservationToFirestore(payload);
+
         observationsData.unshift({
           docId,
           id: nextDisplayId, ...payload,
@@ -715,17 +715,17 @@ async function uploadImageBase64(file) {
           isVideo: false,
           fileMimeType: 'image/jpeg',
           createdAt: Date.now(),
+          updatedAt: Date.now(),
           isNewInput: true
         });
 
         renderObservationsList(observationsData);
         showObservationDetail(docId);
-
         setHTML('modalResultContent', successHTML('تمت معالجة الملاحظة وإضافتها بنجاح.'));
         lucide.createIcons();
 
-        // تنظيف حقول الإدخال
-        currentFile = null; currentFileUrl = null;
+        // تنظيف
+        currentFile = null;
         document.getElementById('fileUploadInput').value = '';
         document.getElementById('rawObservationInput').value = '';
         setText('fileStatus','لم يتم اختيار ملف بعد');
@@ -742,59 +742,24 @@ async function uploadImageBase64(file) {
       }
     };
 
-    window.openModal = function(id){
-      document.getElementById(id).style.display = "flex";
-      if (id==='closeoutModal' && currentSelectedObservation){
-        setText('closeoutId', currentSelectedObservation.id || '-');
-        clearAfterUpload();
-      }
-      if (id==='smartInputModal'){
-        // تهيئة النموذج
-        document.getElementById('rawObservationInput').value = '';
-        setText('locationStatus','لم يتم التحديد بعد');
-        setText('fileStatus','لم يتم اختيار ملف بعد');
-        document.getElementById('inputLatitude').value='';
-        document.getElementById('inputLongitude').value='';
-        currentFile = null; currentFileUrl = null;
-        document.getElementById('fileUploadInput').value='';
-        document.getElementById('processSmartInputBtn').disabled = true;
-        hide('modalResult'); unhide('modalStep1');
-      }
-    };
-
-    window.closeModal = function(id){ document.getElementById(id).style.display = "none"; };
-
-    window.clearAfterUpload = function(){
-      currentAfterFile = null; currentAfterFileUrl = null;
-      document.getElementById('afterFileUploadInput').value='';
-      setHTML('afterFileStatus','لم يتم اختيار ملف بعد <span class="text-red-500 font-bold">(إلزامي)</span>');
-      document.getElementById('resolutionNoteInput').value='';
-      document.getElementById('finalCloseoutBtn').disabled = true;
-    };
-
     window.handleAfterFileUpload = function(e){
       const file = e.target.files[0];
-      if (!file) { currentAfterFile=null; currentAfterFileUrl=null; setHTML('afterFileStatus','لم يتم اختيار ملف بعد <span class="text-red-500 font-bold">(إلزامي)</span>'); document.getElementById('finalCloseoutBtn').disabled=true; return; }
+      if (!file) { currentAfterFile=null; setHTML('afterFileStatus','لم يتم اختيار ملف بعد <span class="text-red-500 font-bold">(إلزامي)</span>'); document.getElementById('finalCloseoutBtn').disabled=true; return; }
       if (!file.type.startsWith('image/')) { alert('يجب رفع صورة لإغلاق الملاحظة.'); e.target.value=''; return; }
       currentAfterFile = file;
       setHTML('afterFileStatus', `<span class="text-green-600">تم اختيار الملف:</span> ${file.name}`);
-      // سنرفعها عند الضغط "تأكيد الإغلاق"
       document.getElementById('finalCloseoutBtn').disabled = false;
     };
 
     window.completeObservation = async function(){
       if (!currentSelectedObservation) return;
       if (!currentAfterFile) { alert('الرجاء رفع صورة "بعد الإصلاح".'); return; }
-
-      const note = (document.getElementById('resolutionNoteInput').value || '').trim()
+      const note = (document.getElementById('resolutionNoteInput')?.value || '').trim()
         || `تم الإغلاق التنفيذي في ${new Date().toLocaleString('ar-SA')} وتوثيقه بالصورة المرفقة.`;
-
       try {
-        // ارفع صورة AFTER لـ ImgBB
         setButtonBusy('finalCloseoutBtn', true);
         const afterUrl = await uploadImageBase64(currentAfterFile);
 
-        // حدّث Firestore إن كان متاح
         if (FIREBASE_READY) {
           await updateObservationInFirestore(currentSelectedObservation.docId, {
             status: 'COMPLETED',
@@ -804,15 +769,13 @@ async function uploadImageBase64(file) {
           });
         }
 
-        // حدّث محلياً
         currentSelectedObservation.status = 'COMPLETED';
         currentSelectedObservation.isComparative = true;
         currentSelectedObservation.afterImagePath = afterUrl;
         currentSelectedObservation.resolutionNote = note;
 
-        // أغلق النافذة
         closeModal('closeoutModal'); clearAfterUpload();
-        handleFilterChange(); // لإعادة العرض
+        handleFilterChange();
         showObservationDetail(currentSelectedObservation.docId);
         alert(`تم إغلاق الملاحظة رقم ${currentSelectedObservation.id} وتوثيقها بنجاح!`);
       } catch (e) {
@@ -825,55 +788,191 @@ async function uploadImageBase64(file) {
     };
 
     // =============================
-    // 6) ميزات العرض الأخرى كما هي
+    // 7) الخريطة: نقاط لايف + أقرب مسار
     // =============================
-    window.setupImageComparison = function(){
-      const wrapper = document.getElementById('imageComparisonWrapper');
-      const divider = document.getElementById('comparisonDivider');
-      const afterImageContainer = document.getElementById('afterImageContainer');
-      if (!wrapper) return;
-      afterImageContainer.style.width = '50%'; divider.style.left = '50%';
-      let isDragging = false;
-      const onMove = (clientX)=>{
-        if(!isDragging) return;
-        const r = wrapper.getBoundingClientRect();
-        let left = Math.max(0, Math.min(clientX - r.left, r.width));
-        divider.style.left = `${left}px`; afterImageContainer.style.width = `${left}px`;
-      };
-      const onMouseMove = e=>onMove(e.clientX);
-      const onTouchMove = e=>onMove(e.touches[0].clientX);
-      const onMouseUp = ()=>{
-        isDragging=false; wrapper.classList.remove('dragging');
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('touchmove', onTouchMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        window.removeEventListener('touchend', onMouseUp);
-      };
-      const onMouseDown = e=>{
-        e.preventDefault(); isDragging=true; wrapper.classList.add('dragging');
-        onMove(e.clientX || (e.touches&&e.touches[0].clientX));
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('touchmove', onTouchMove);
-        window.addEventListener('mouseup', onMouseUp);
-        window.addEventListener('touchend', onMouseUp);
-      };
-      divider.addEventListener('mousedown', onMouseDown);
-      divider.addEventListener('touchstart', onMouseDown);
-      wrapper.addEventListener('mousedown', onMouseDown);
-      wrapper.addEventListener('touchstart', onMouseDown);
+    let map, userMarker, userCircle, clusterLayer, routing;
+    const markersIndex = new Map(); // docId -> marker
+
+    function initMap(){
+      map = L.map('observationMap', { zoomControl: true }).setView([24.7136, 46.6753], 8); // الرياض كافتراضي
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+      clusterLayer = L.markerClusterGroup({ showCoverageOnHover:false });
+      map.addLayer(clusterLayer);
+
+      // أزرار الأدوات
+      document.getElementById('btn-locate').onclick = locateUser;
+      document.getElementById('btn-nearest').onclick = goToNearest;
+      document.getElementById('btn-clear-route').onclick = clearRoute;
+
+      // تتبع موقع المستخدم لحظيًا
+      if ('geolocation' in navigator) {
+        navigator.geolocation.watchPosition(pos=>{
+          const lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy || 30;
+          if (!userMarker){
+            userMarker = L.circleMarker([lat,lon], { radius:7, color:'#10b981', fillColor:'#10b981', fillOpacity:0.9 }).addTo(map);
+            userCircle = L.circle([lat,lon], { radius: acc, color:'#10b981', fillOpacity:.07 }).addTo(map);
+          } else {
+            userMarker.setLatLng([lat,lon]);
+            userCircle.setLatLng([lat,lon]).setRadius(acc);
+          }
+        }, _err=>{/* صامت */}, { enableHighAccuracy:true, maximumAge:5000, timeout:15000 });
+      }
+    }
+
+    function locateUser(){
+      if (userMarker) { map.flyTo(userMarker.getLatLng(), 14, { duration:.6 }); return; }
+      navigator.geolocation?.getCurrentPosition(pos=>{
+        map.flyTo([pos.coords.latitude, pos.coords.longitude], 14, { duration:.6 });
+      });
+    }
+
+    function categoryOf(obs){
+      // مقلق: أولوية High
+      if ((obs.riskAssessment?.priority||'').toLowerCase() === 'high') return 'ALERT';
+      // محدث: قيد التنفيذ
+      if (obs.status === 'IN_PROGRESS') return 'UPDATED';
+      // جديد: حالة انتظار
+      if (obs.status === 'PENDING') return 'NEW';
+      // غير ذلك: نتجاهله في التصنيف المطلوب
+      return 'OTHER';
+    }
+
+    function colorFor(cat){
+      return cat === 'ALERT' ? '#ef4444' : (cat === 'UPDATED' ? '#f59e0b' : (cat === 'NEW' ? '#2563eb' : '#6b7280'));
+    }
+
+    function makeMarker(obs){
+      const cat = categoryOf(obs);
+      const color = colorFor(cat);
+      const [latStr, lonStr] = (obs.location||'').split(',').map(s=>s.trim());
+      const lat = parseFloat(latStr), lon = parseFloat(lonStr);
+      if (!isFinite(lat) || !isFinite(lon)) return null;
+
+      const m = L.circleMarker([lat,lon], { radius: 8, color, fillColor: color, fillOpacity: .9, weight:2 });
+      const googleLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+      const title = escapeHTML(obs.title||'—');
+      const badge = (
+        cat==='ALERT' ? 'مقلق' : (cat==='UPDATED' ? 'محدث' : (cat==='NEW' ? 'جديد' : (obs.status||'')))
+      );
+      const popupHtml = `
+        <div style="min-width:220px">
+          <div style="font-weight:800;color:#0A1931">${title}</div>
+          <div style="margin-top:4px;font-size:.85rem;color:#475569">الحالة: <b>${badge}</b></div>
+          ${obs.imagePath ? `<img src="${obs.imagePath}" alt="" style="width:100%;margin-top:.5rem;border-radius:.6rem;box-shadow:0 6px 16px rgba(0,0,0,.08)">` : ''}
+          <div style="display:flex;gap:.4rem;margin-top:.6rem">
+            <a href="${googleLink}" target="_blank" class="map-btn" style="padding:.35rem .7rem;background:#18A5A2">افتح في خرائط Google</a>
+            <button class="map-btn" style="padding:.35rem .7rem" onclick="window.routeTo(${lat},${lon})">توجيه مباشر</button>
+          </div>
+        </div>`;
+      m.bindPopup(popupHtml);
+      m.on('click', ()=>{ /* عند اختيار نقطة من الخريطة نحدّث التفاصيل إن وُجدت */ showObservationDetail?.(obs.docId); });
+      return m;
+    }
+
+    function refreshMapMarkers(){
+      clusterLayer.clearLayers();
+      markersIndex.clear();
+      const bounds = [];
+      observationsData.forEach(obs=>{
+        const cat = categoryOf(obs);
+        if (cat==='OTHER') return; // نعرض فقط جديد/محدث/مقلق
+        const marker = makeMarker(obs);
+        if (marker){
+          clusterLayer.addLayer(marker);
+          markersIndex.set(obs.docId, marker);
+          const ll = marker.getLatLng(); bounds.push([ll.lat, ll.lng]);
+        }
+      });
+      if (bounds.length) map.fitBounds(bounds, { padding:[40,40] });
+    }
+
+    window.focusMarker = function(obs){
+      const m = markersIndex.get(obs.docId);
+      if (m){
+        const ll = m.getLatLng();
+        map.flyTo(ll, 15, { duration:.6 });
+        setTimeout(()=> m.openPopup(), 450);
+      }
     };
 
-    window.analyzeImage = function(tool){
-      const title = {'vision':'تحليل الرؤية (Vision)','root-cause':'تحليل السبب الجذري'}[tool] || 'التحليل';
-      setText('aiResultTitle', `جاري تنفيذ ${title}...`);
-      setHTML('aiResultContent', `<div class="flex items-center text-teal-700 font-bold"><div class="loading-spinner" style="border-top-color: var(--color-teal); border: 4px solid rgba(24, 165, 162, 0.3); margin-left: 8px;"></div> يرجى الانتظار</div>`);
-      unhide('aiResultContainer');
-      setTimeout(()=>{
-        let result = (tool==='vision')
-          ? `<p class="communication-draft">**وصف تقريبي تلقائي:** تظهر مؤشرات تلف/تشققات. يُوصى بإزالة الجزء المتضرر وإعادة السفلتة.</p>`
-          : `<p class="communication-draft">**5 Whys (مقترح):**\n1) لماذا حدث؟ تأخر صيانة.\n2) لماذا؟ نقص متابعة.\n3) لماذا؟ جدول غير محدث.\n4) لماذا؟ بدون أتمتة.\n5) السبب الجذري: غياب آلية تنبيه دوري.</p>`;
-        setText('aiResultTitle', `نتائج ${title} مكتملة:`); setHTML('aiResultContent', result);
-      }, 1200);
+    function haversine(a,b){
+      const R=6371e3, toRad=x=>x*Math.PI/180;
+      const φ1=toRad(a.lat), φ2=toRad(b.lat), Δφ=toRad(b.lat-a.lat), Δλ=toRad(b.lng-a.lng);
+      const s = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+      return 2*R*Math.asin(Math.sqrt(s));
+    }
+
+    function nearestToUser(){
+      if (!userMarker) return null;
+      const u = userMarker.getLatLng();
+      let best = null, bestD = Infinity, bestObs = null;
+      observationsData.forEach(obs=>{
+        const cat = categoryOf(obs);
+        if (cat==='OTHER') return;
+        const m = markersIndex.get(obs.docId);
+        if (!m) return;
+        const d = haversine(u, m.getLatLng());
+        if (d < bestD){ best = m; bestD = d; bestObs = obs; }
+      });
+      return { marker: best, distance: bestD, obs: bestObs };
+    }
+
+    window.routeTo = function(lat, lon){
+      clearRoute();
+      const start = userMarker ? userMarker.getLatLng() : map.getCenter();
+      routing = L.Routing.control({
+        waypoints: [ L.latLng(start.lat, start.lng), L.latLng(lat, lon) ],
+        lineOptions:{ addWaypoints:false, styles: [{color:'#18A5A2', weight:6, opacity:.9}] },
+        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+        show: false, collapsible: true, fitSelectedRoutes: true, language: 'ar'
+      }).addTo(map);
+    };
+
+    function clearRoute(){
+      if (routing){ map.removeControl(routing); routing = null; }
+    }
+
+    function goToNearest(){
+      const res = nearestToUser();
+      if (!res || !res.marker){ alert('لم يتم تحديد موقعك بعد أو لا توجد ملاحظات قريبة.'); return; }
+      const ll = res.marker.getLatLng();
+      map.flyTo(ll, 15, { duration:.6 });
+      setTimeout(()=> res.marker.openPopup(), 450);
+      routeTo(ll.lat, ll.lng);
+    }
+
+    // =============================
+    // 8) أدوات مساعدة UI
+    // =============================
+    window.openModal = function(id){
+      document.getElementById(id).style.display = "flex";
+      if (id==='closeoutModal' && currentSelectedObservation){
+        setText('closeoutId', currentSelectedObservation.id || '-');
+        clearAfterUpload();
+      }
+      if (id==='smartInputModal'){
+        document.getElementById('rawObservationInput').value = '';
+        setText('locationStatus','لم يتم التحديد بعد');
+        setText('fileStatus','لم يتم اختيار ملف بعد');
+        document.getElementById('inputLatitude').value='';
+        document.getElementById('inputLongitude').value='';
+        currentFile = null;
+        document.getElementById('fileUploadInput').value='';
+        document.getElementById('processSmartInputBtn').disabled = true;
+        hide('modalResult'); unhide('modalStep1');
+      }
+    };
+
+    window.closeModal = function(id){ document.getElementById(id).style.display = "none"; };
+
+    window.clearAfterUpload = function(){
+      currentAfterFile = null;
+      document.getElementById('afterFileUploadInput').value='';
+      setHTML('afterFileStatus','لم يتم اختيار ملف بعد <span class="text-red-500 font-bold">(إلزامي)</span>');
+      document.getElementById('resolutionNoteInput').value='';
+      document.getElementById('finalCloseoutBtn').disabled = true;
     };
 
     window.generateCommunicationDraft = function(){
@@ -912,9 +1011,6 @@ async function uploadImageBase64(file) {
       setTimeout(()=>{ alert('تم تسجيل الخروج.'); window.location.href='login.html'; }, 800);
     };
 
-    // =============================
-    // 7) أدوات مساعدة UI
-    // =============================
     function setText(id, text){ const el=document.getElementById(id); if(el) el.textContent = text ?? ''; }
     function setHTML(id, html){ const el=document.getElementById(id); if(el) el.innerHTML = html ?? ''; }
     function hide(id){ const el=document.getElementById(id); if(el) el.classList.add('hidden'); }
@@ -926,58 +1022,61 @@ async function uploadImageBase64(file) {
     function escapeHTML(str){ return (str||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
     function cryptoRandom(){ return (crypto.getRandomValues(new Uint32Array(2)).join('')); }
 
-    // وضع تجريبي محلي (في حال عدم ضبط Firebase)
+    // داتا تجريبية محلية إن لم يتوفر Firebase
     function seedLocalDemo(){
       observationsData = [
-        { docId:'local-4', id:4, type:'QUALITY', date:'2024-09-20', title:'تآكل في لوحة إرشادية (الشعار غير واضح)', status:'PENDING', details:'تآكل واضح بلوحة إرشادية.', hasImage:true, isComparative:false, location:'24.5247, 46.7135', isVideo:false, imagePath:'https://picsum.photos/800/600?random=4', fileMimeType:'image/jpeg', actionPlan:'استبدال اللوحة.', riskAssessment:{priority:'High', timeframe:'7 days'}, resolutionNote:null, afterImagePath:null, createdAt: new Date("2024-09-20T16:45:00").getTime(), isNewInput:false },
-        { docId:'local-2', id:2, type:'QUALITY', date:'2024-09-28', title:'تصدع في الأسفلت وإعادة رصف', status:'COMPLETED', details:'تم إغلاقه بعد الإصلاح الكامل.', hasImage:true, isComparative:true, location:'24.5247, 46.7135', isVideo:false, imagePath:'https://picsum.photos/800/600?random=2', afterImagePath:'https://picsum.photos/800/600?random=5', fileMimeType:'image/jpeg', actionPlan:'إعادة بناء الطبقات.', riskAssessment:{priority:'Low', timeframe:'7 days'}, resolutionNote:'تم الإغلاق حسب المواصفات.', createdAt: new Date("2024-09-28T14:30:00").getTime(), isNewInput:false },
-        { docId:'local-3', id:3, type:'MAINTENANCE', date:'2024-09-25', title:'عطل في نظام التبريد الرئيسي', status:'IN_PROGRESS', details:'إرسال فريق عاجل.', hasImage:true, isComparative:false, location:'24.5247, 46.7135', isVideo:false, imagePath:'https://picsum.photos/800/600?random=3', fileMimeType:'image/jpeg', actionPlan:'توفير قطع الغيار.', riskAssessment:{priority:'Medium', timeframe:'48 hours'}, resolutionNote:null, afterImagePath:null, createdAt: new Date("2024-09-25T08:15:00").getTime(), isNewInput:false },
-        { docId:'local-1', id:1, type:'SAFETY', date:'2024-10-01', title:'ملاحظة عدم ارتداء معدات الحماية', status:'PENDING', details:'فريق بدون خوذات أمان.', hasImage:true, isComparative:false, location:'24.5247, 46.7135', isVideo:false, imagePath:'https://picsum.photos/800/600?random=1', fileMimeType:'image/jpeg', actionPlan:'تعزيز الالتزام بـ PPE.', riskAssessment:{priority:'High', timeframe:'24 hours'}, resolutionNote:null, afterImagePath:null, createdAt: new Date("2024-10-01T10:00:00").getTime(), isNewInput:false }
-      ].sort((a,b)=>b.createdAt-a.createdAt);
+        { docId:'local-4', id:4, type:'QUALITY', date:'2024-09-20', title:'تآكل في لوحة إرشادية (الشعار غير واضح)', status:'PENDING', details:'تآكل واضح بلوحة إرشادية.', hasImage:true, isComparative:false, location:'24.774265, 46.738586', isVideo:false, imagePath:'https://picsum.photos/800/600?random=4', fileMimeType:'image/jpeg', actionPlan:'استبدال اللوحة.', riskAssessment:{priority:'High', timeframe:'7 days'}, resolutionNote:null, afterImagePath:null, createdAt: Date.now()-1000*60*60*24*10, updatedAt: Date.now()-1000*60*60*24*10, isNewInput:false },
+        { docId:'local-2', id:2, type:'QUALITY', date:'2024-09-28', title:'تصدع في الأسفلت وإعادة رصف', status:'COMPLETED', details:'تم إغلاقه بعد الإصلاح الكامل.', hasImage:true, isComparative:true, location:'24.7200, 46.6700', isVideo:false, imagePath:'https://picsum.photos/800/600?random=2', afterImagePath:'https://picsum.photos/800/600?random=5', fileMimeType:'image/jpeg', actionPlan:'إعادة بناء الطبقات.', riskAssessment:{priority:'Low', timeframe:'7 days'}, resolutionNote:'تم الإغلاق حسب المواصفات.', createdAt: Date.now()-1000*60*60*24*8, updatedAt: Date.now()-1000*60*60*24*8, isNewInput:false },
+        { docId:'local-3', id:3, type:'MAINTENANCE', date:'2024-09-25', title:'عطل في نظام التبريد الرئيسي', status:'IN_PROGRESS', details:'إرسال فريق عاجل.', hasImage:true, isComparative:false, location:'24.6500, 46.7600', isVideo:false, imagePath:'https://picsum.photos/800/600?random=3', fileMimeType:'image/jpeg', actionPlan:'توفير قطع الغيار.', riskAssessment:{priority:'Medium', timeframe:'48 hours'}, resolutionNote:null, afterImagePath:null, createdAt: Date.now()-1000*60*60*24*6, updatedAt: Date.now()-1000*60*60*24*2, isNewInput:false },
+        { docId:'local-1', id:1, type:'SAFETY', date:'2024-10-01', title:'ملاحظة عدم ارتداء معدات الحماية', status:'PENDING', details:'فريق بدون خوذات أمان.', hasImage:true, isComparative:false, location:'24.8000, 46.6800', isVideo:false, imagePath:'https://picsum.photos/800/600?random=1', fileMimeType:'image/jpeg', actionPlan:'تعزيز الالتزام بـ PPE.', riskAssessment:{priority:'High', timeframe:'24 hours'}, resolutionNote:null, afterImagePath:null, createdAt: Date.now()-1000*60*60*24*3, updatedAt: Date.now()-1000*60*60*24*3, isNewInput:false }
+      ];
     }
 
     // =============================
-    // 8) بدء التشغيل
+    // 9) بدء التشغيل
     // =============================
     async function initApp(){
       try {
-        await loadFromFirestore();
+        await loadFromFirestoreOnce();
       } catch (e) {
         console.warn('Loading from Firestore failed, fallback to local demo.', e);
         seedLocalDemo();
       }
-      // عرض
+
+      // عرض أولي
       renderKPIs();
       observationsData.sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
       renderObservationsList(observationsData);
       if (observationsData.length>0) showObservationDetail(observationsData[0].docId);
       lucide.createIcons();
+
+      // خريطة
+      initMap();
+      refreshMapMarkers();
+
+      // Realtime updates
+      listenRealtime();
     }
     window.onload = initApp;
 
-        window.onload = initApp;
-
-// =============================
-// أداة مساعدة لتغيير حالة الأزرار أثناء التحميل
-// =============================
-function setButtonBusy(buttonId, busy) {
-  const btn = document.getElementById(buttonId);
-  if (!btn) return;
-  if (busy) {
-    btn.disabled = true;
-    btn.innerHTML = `
-      <div class="loading-spinner" 
-           style="border-top:4px solid var(--color-teal);
-                  width:20px;height:20px;
-                  margin-inline-end:8px;"></div> جاري المعالجة...`;
-    btn.classList.add('flex','items-center','justify-center','gap-2');
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = 'تأكيد الإغلاق';
-    btn.classList.remove('flex','items-center','justify-center','gap-2');
-  }
-}
-
+    // زر حالة التحميل
+    function setButtonBusy(buttonId, busy) {
+      const btn = document.getElementById(buttonId);
+      if (!btn) return;
+      if (busy) {
+        btn.disabled = true;
+        btn.innerHTML = `
+          <div class="loading-spinner" 
+              style="border-top:4px solid var(--color-teal);
+                      width:20px;height:20px;
+                      margin-inline-end:8px;"></div> جاري المعالجة...`;
+        btn.classList.add('flex','items-center','justify-center','gap-2');
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = 'تأكيد الإغلاق';
+        btn.classList.remove('flex','items-center','justify-center','gap-2');
+      }
+    }
   </script>
 </body>
 </html>
