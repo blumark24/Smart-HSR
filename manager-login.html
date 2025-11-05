@@ -64,17 +64,17 @@
     <p class="mt-6 text-white/60 text-xs">© 2025 Smart HSR — جميع الحقوق محفوظة</p>
   </div>
 
-<script type="module">
+ <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // إعدادات Firebase الصحيحة
+  // 🔥 إعداد Firebase الخاص بلوحة المدير
   const firebaseConfig = {
-    apiKey: "AIzaSyBQ9iNZn0uxdkDSjKV6IlXGC5FW5-lxgZI",
+    apiKey: "AIzaSyCXCiNeaO9lhM79tKb98x4oaNqNy5xKvWM",
     authDomain: "smart-hsr-manager.firebaseapp.com",
     projectId: "smart-hsr-manager",
-    storageBucket: "smart-hsr-manager.appspot.com", // ✅ تم تصحيحه
+    storageBucket: "smart-hsr-manager.firebasestorage.app",
     messagingSenderId: "38965508031",
     appId: "1:38965508031:web:6fd0b6c6b0b63fa513930a"
   };
@@ -86,47 +86,34 @@
   const form = document.getElementById('loginForm');
   const errorMsg = document.getElementById('errorMsg');
 
-  // ✅ الخطوة الأولى: لو المدير مسجل دخول بالفعل، نوجهه فوراً للوحة التحكم
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const ref = doc(db, 'managers', user.uid);
-      const snap = await getDoc(ref);
-      if (snap.exists() && snap.data().role === 'manager') {
-        window.location.href = 'manager.html';
-      }
-    }
-  });
-
-  // ✅ عند الضغط على "تسجيل الدخول"
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value.trim();
 
     try {
+      // تسجيل الدخول
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      const managerRef = doc(db, 'managers', user.uid);
-      let managerSnap = await getDoc(managerRef);
+      // التحقق من Firestore داخل مجموعة managers
+      const userDoc = await getDoc(doc(db, 'managers', user.uid));
 
-      if (!managerSnap.exists()) {
-        await setDoc(managerRef, {
-          role: 'manager',
-          email: user.email || email,
-          createdAt: serverTimestamp()
-        });
-        managerSnap = await getDoc(managerRef);
+      if (!userDoc.exists()) {
+        errorMsg.textContent = '🚫 لا توجد صلاحية لهذا المستخدم.';
+        errorMsg.classList.remove('hidden');
+        return;
       }
 
-      const role = managerSnap.data().role;
+      const role = userDoc.data().role;
       if (role !== 'manager') {
         errorMsg.textContent = '🚫 صلاحية الدخول محدودة — ليست صلاحية مدير النظام';
         errorMsg.classList.remove('hidden');
         return;
       }
 
-      await setDoc(managerRef, { lastLogin: serverTimestamp() }, { merge: true });
+      // ✅ نجاح الدخول
+      sessionStorage.setItem('smartHSRUser', JSON.stringify({ email: user.email, uid: user.uid }));
       window.location.href = 'manager.html';
 
     } catch (error) {
@@ -136,8 +123,6 @@
     }
   });
 </script>
-
-
-
+  
 </body>
 </html>
