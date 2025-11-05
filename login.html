@@ -186,7 +186,7 @@ window.signInWithEmail = async function () {
         msg('تم تسجيل الدخول بنجاح. جاري التوجيه...','success');
         
         // التوجيه إلى صفحة لوحة القيادة
-        window.location.href="index.html"; 
+        window.location.href="dashboard.html"; 
     } catch(e) {
         let errorMessage = 'خطأ في تسجيل الدخول. تأكد من البريد وكلمة المرور.';
         if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
